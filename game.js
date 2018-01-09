@@ -20,7 +20,9 @@ var shields;
 var score = 0;
 var scoreText;
 var greenEnemyLaunchTimer;
+var missilePackLaunchTimer;
 var greenEnemySpacing = 1000;
+var missilePackSpacing = 50000;
 var blueEnemyLaunchTimer;
 var blueEnemyLaunched = false;
 var blueEnemySpacing = 2500;
@@ -49,25 +51,26 @@ var rocket2;
 var activeRocket = 1;
 var rocketFired = false;
 var rocketSmoke;
+var missilePacks;
 
 
 function preload() {
-    game.load.image('starfield', '/firstgame/assets/starfield.jpg');
-    game.load.image('ship', '/firstgame/assets/player/ship.png');
-    game.load.image('shield', '/firstgame/assets/shield.png');
-    game.load.image('bullet', '/firstgame/assets/player/bullet.png');
-    game.load.image('enemy-green', '/firstgame/assets/enemy/brown/ship.png');
-    game.load.image('enemy-blue', '/firstgame/assets/enemy/blue/ship.png');
-    game.load.image('blueEnemyBullet', '/firstgame/assets/enemy-blue-bullet.png');
-    game.load.spritesheet('explosion', '/firstgame/assets/explode.png', 128, 128);
-    game.load.spritesheet('blast', '/firstgame/assets/blasted.png', 192, 192,20);
-    game.load.bitmapFont('spacefont', '/firstgame/assets/spacefont/spacefont.png', '/phaser/assets/spacefont/spacefont.xml');  
-    game.load.image('boss', '/firstgame/assets/enemy/boss/ship.png');
-    game.load.image('deathRay', '/firstgame/assets/death-ray.png');
-    
-    game.load.image('rocket', '/firstgame/assets/player/rocket.png');
-    game.load.image('rocketsmoke', '/firstgame/assets/player/smoke.png');
-    game.load.image('missile', '/firstgame/assets/player/missile.png');
+    game.load.image('starfield', '/assets/starfield.jpg');
+    game.load.image('ship', '/assets/player/ship.png');
+    game.load.image('shield', '/assets/shield.png');
+    game.load.image('bullet', '/assets/player/bullet.png'); 
+    game.load.image('enemy-green', '/assets/enemy/brown/ship.png');
+    game.load.image('enemy-blue', '/assets/enemy/blue/ship.png');
+    game.load.image('blueEnemyBullet', '/assets/enemy-blue-bullet.png');
+    game.load.spritesheet('explosion', '/assets/explode.png', 128, 128);
+    game.load.spritesheet('blast', '/assets/blasted.png', 192, 192,20);
+    game.load.bitmapFont('spacefont', '/assets/spacefont/spacefont.png', '/assets/spacefont/spacefont.xml');
+    game.load.image('boss', '/assets/enemy/boss/ship.png');
+    game.load.image('deathRay', '/assets/death-ray.png');
+    game.load.image('rocket', '/assets/player/rocket.png');
+    game.load.image('rocketsmoke', '/assets/player/smoke.png');
+    game.load.image('missile', '/assets/player/missile.png');
+    game.load.image('missile_packet', '/assets/player/rocketpack.png');
 }
 
 
@@ -83,7 +86,7 @@ function create() {
     bullets.createMultiple(30, 'bullet');
     bullets.setAll('anchor.x', 0.5);
     bullets.setAll('anchor.y', 1);
-    bullets.setAll('outOfBoundsKill', true);
+    bullets.setAll('outOfBoundsKill', true); 
     bullets.setAll('checkWorldBounds', true);
 
     //  The hero!
@@ -179,6 +182,23 @@ function create() {
     });
 
     game.time.events.add(1000, launchGreenEnemy);
+    
+    
+    //missile pack
+    missilePacks  = game.add.group();
+    missilePacks.enableBody = true;
+    missilePacks.physicsBodyType = Phaser.Physics.ARCADE;
+    missilePacks.createMultiple(5, 'missile_packet');
+    missilePacks.setAll('anchor.x', 0.5);
+    missilePacks.setAll('anchor.y', 0.5);
+    missilePacks.setAll('scale.x', 0.5);
+    missilePacks.setAll('scale.y', 0.5);
+    missilePacks.setAll('angle', 45);
+    
+
+    game.time.events.add(5000, launchMissilePack);
+    
+    
 
     //  Blue enemy's bullets
     blueEnemyBullets = game.add.group();
@@ -756,17 +776,18 @@ function lunchMisilie(rocket, x){
                     var beforeScaleX = blasts.scale.x;
                     var beforeScaleY = blasts.scale.y;
                     var beforeAlpha = blasts.alpha;
-                    blast.reset(this.x,this.y);
-                    blast.alpha = 0.8;
-                    blast.scale.x = 3;
-                    blast.scale.y = 3;
-                    var animation = blast.play('blast', 30, false, true);
-                    animation.onComplete.addOnce(function(){
-                        blast.scale.x = beforeScaleX;
-                        blast.scale.y = beforeScaleY;
-                        blast.alpha = beforeAlpha;
-                    });
-                    
+                    if(blast){
+                        blast.reset(this.x,this.y);
+                        blast.alpha = 0.8;
+                        blast.scale.x = 3;
+                        blast.scale.y = 3;
+                        var animation = blast.play('blast', 30, false, true);
+                        animation.onComplete.addOnce(function(){
+                            blast.scale.x = beforeScaleX;
+                            blast.scale.y = beforeScaleY;
+                            blast.alpha = beforeAlpha;
+                        });
+                    }
                     
                     
                     this.kill();
@@ -910,6 +931,32 @@ function launchGreenEnemy() {
     //  Send another enemy soon
     greenEnemyLaunchTimer = game.time.events.add(game.rnd.integerInRange(greenEnemySpacing, greenEnemySpacing + 1000), launchGreenEnemy);
 }
+
+
+function launchMissilePack(){
+    var PACKET_SPEED = 100;
+
+    var packet = missilePacks.getFirstExists(false);
+    if (packet) {
+        packet.reset(game.rnd.integerInRange(0, game.width), -20);
+        packet.body.velocity.x = game.rnd.integerInRange(-300, 300);
+        packet.body.velocity.y = PACKET_SPEED;
+        packet.body.drag.x = 100;
+        //  Update function for each enemy ship to update rotation etc
+        packet.update = function(){
+
+          //  Kill enemies once they go off screen
+          if (packet.y > game.height + 200) {
+            packet.kill();
+            packet.y = -20;
+          }
+        }
+    }
+
+    //  Send another enemy soon
+    missilePackLaunchTimer = game.time.events.add(game.rnd.integerInRange(missilePackSpacing, missilePackSpacing + 50000), launchMissilePack);
+}
+
 
 function launchBlueEnemy() {
     var startingX = game.rnd.integerInRange(100, game.width - 100);
@@ -1147,4 +1194,4 @@ function restart () {
     greenEnemySpacing = 1000;
     blueEnemyLaunched = false;
     bossLaunched = false;
-}
+};
